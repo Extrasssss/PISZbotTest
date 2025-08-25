@@ -8,8 +8,12 @@ import re
 import app.keyboards as kb
 # import app.validators as vd
 import app.zakupki_info as zakupki
+import app.database.requests as rq
+from app.middlewares import DataMiddleware
 
 router = Router()
+
+router.message.outer_middleware(DataMiddleware())
 
 
 class Add(StatesGroup):
@@ -25,6 +29,7 @@ class Add(StatesGroup):
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
+    await rq.set_user(message.from_user.id)
     await message.answer(f'Привет, {message.from_user.first_name}! Я бот для помощи стола заказов.',
                          reply_markup=kb.main)
 
