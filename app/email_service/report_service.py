@@ -19,14 +19,16 @@ from app.inner_db.inner_db import applications_manager
 logger = logging.getLogger(__name__)
 
 
-# Цвета для отделов
+# Цвета для отделов (обновленные)
 DEPARTMENT_COLORS = {
     "ТЗ": PatternFill(
-        start_color="00FF00", end_color="00FF00", fill_type="solid"
+        start_color="A8E4A0", end_color="A8E4A0", fill_type="solid"
     ),  # Зеленый
     "ИМ": PatternFill(
-        start_color="00FFFF", end_color="00FFFF", fill_type="solid"
+        start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"
     ),  # Голубой
+    "🐕ТЗ": PatternFill(start_color="A8E4A0", end_color="A8E4A0", fill_type="solid"),
+    "🐈ИМ": PatternFill(start_color="B0E0E6", end_color="B0E0E6", fill_type="solid"),
 }
 
 
@@ -47,6 +49,15 @@ def create_excel_report(applications: List[Dict]) -> str:
             name = extract_field(app_text, "Имя:")
             department = extract_field(app_text, "Отдел:")
             date = extract_field(app_text, "Дата:")
+            
+            # Получаем новые поля из базы данных
+            db_contacts = app.get("contacts", "")
+            db_name = app.get("name", "")
+            db_purchaser_comment = app.get("purchaser_comment", "")
+            
+            # Используем данные из базы, если они есть, иначе из текста
+            final_contacts = db_contacts if db_contacts else contacts
+            final_name = db_name if db_name else name
 
             # Извлекаем артикулы и названия книг
             articles, book_names = extract_books_info(app_text)
@@ -55,9 +66,10 @@ def create_excel_report(applications: List[Dict]) -> str:
                 {
                     "ID": app["id"],
                     "Дата в заявке": date,
-                    "Имя": name,
+                    "Имя": final_name,
                     "Отдел": department,
-                    "Контакты": contacts,
+                    "Контакты": final_contacts,
+                    "Комментарий закупщика": db_purchaser_comment,
                     "Артикулы книг": articles,
                     "Названия книг": book_names,
                     "Комментарий": app["comment"],
@@ -250,6 +262,7 @@ def extract_from_unstructured_text(text: str) -> tuple:
                 "Отдел:",
                 "Комментарий:",
                 "Статус заявки:",
+                "Комментарий от закупщика:",
             ]
         ):
             continue
@@ -315,8 +328,8 @@ async def send_report_in_chat(message):
                 document=input_file,
                 caption=f"📎 Отчет по заявкам ({len(applications)} заявок)\n\n"
                 f"🎨 Цветовая маркировка:\n"
-                f"• 🟢 ТЗ - зеленый\n"
-                f"• 🔵 ИМ - голубой",
+                f"• 🟢 ТЗ - светло-зеленый (#A8E4A0)\n"
+                f"• 🔵 ИМ - светло-голубой (#B0E0E6)",
             )
 
             # Удаляем временный файл
@@ -377,8 +390,8 @@ async def send_report_to_email(email: str, user_id: int, user_name: str):
                 body += f"- {dept}: {count} заявок\n"
 
             body += f"\nЦветовая маркировка в файле:\n"
-            body += f"- ТЗ: зеленый\n"
-            body += f"- ИМ: голубой\n"
+            body += f"- ТЗ: светло-зеленый (#A8E4A0)\n"
+            body += f"- ИМ: светло-голубой (#B0E0E6)\n"
             body += f"\nЭтот отчет был запрошен через Telegram бота."
 
             # Отправляем email с отчетом
@@ -532,8 +545,8 @@ async def send_weekly_report():
                 body += f"- {dept}: {count} заявок\n"
 
             body += f"\nЦВЕТОВАЯ МАРКИРОВКА В ФАЙЛЕ:\n"
-            body += f"- ТЗ: зеленый\n"
-            body += f"- ИМ: голубой\n"
+            body += f"- ТЗ: светло-зеленый (#A8E4A0)\n"
+            body += f"- ИМ: светло-голубой (#B0E0E6)\n"
             body += f"\nЭто автоматический еженедельный отчет из Telegram бота."
 
             # Отправляем email всем получателям

@@ -499,12 +499,14 @@ async def prencom(message: Message, state: FSMContext):
 @router.message(Add.comment)
 async def nineth(message: Message, state: FSMContext):
     await state.update_data(comment=message.text)
-    status = "В работе"
-    await state.update_data(status=status)
+    status = "Создана"
+    p_comment = ""
+    await state.update_data(status=status,
+                            p_comment=p_comment)
     data = await state.get_data()
     books = data.get("books")
     rebooks = format_final_result(books)
-    application_text = f'Заявка принята.\n   • Дата: {r_time}\n\n{rebooks}\n\n  • Контакты: {data["number"]}\n  • Имя: {data["name"]}\n  • Отдел: {data["sender"]}\n  • Сотрудник, внесший заявку:{data["employee"]}\n  • Комментарий: {data["comment"]}\n\n • Статус заявки: {data["status"]}'
+    application_text = f'Заявка принята.\n   • Дата: {r_time}\n\n{rebooks}\n\n  • Контакты: {data["number"]}\n  • Имя: {data["name"]}\n  • Отдел: {data["sender"]}\n  • Сотрудник, внесший заявку:{data["employee"]}\n  • Комментарий: {data["comment"]}\n\n  • Комментарий от закупщика: {data["p_comment"]}\n\n • Статус заявки: {data["status"]}'
 
     # Сохраняем заявку в историю
     application_id = idb.applications_manager.save_application(
@@ -538,10 +540,12 @@ async def nineth(message: Message, state: FSMContext):
 @router.message(Add.neverbook_comment)
 async def n5(message: Message, state: FSMContext):
     await state.update_data(comment=message.text)
-    status = "В работе"
-    await state.update_data(status=status)
+    status = "Создана"
+    p_comment = ""
+    await state.update_data(status=status,
+                            p_comment=p_comment)
     data = await state.get_data()
-    application_text = f'Заявка принята.\n   • Дата: {r_time}\n\n📚Книга:\n   • {data["neverbook"]}\n\n  • Контакты: {data["number"]}\n  • Имя: {data["name"]}\n  • Отдел: {data["sender"]}\n  • Сотрудник, внесший заявку: {data["employee"]}\n  • Комментарий: {data["comment"]}\n\n • Статус заявки: {data["status"]}'
+    application_text = f'Заявка принята.\n   • Дата: {r_time}\n\n📚Книга:\n   • {data["neverbook"]}\n\n  • Контакты: {data["number"]}\n  • Имя: {data["name"]}\n  • Отдел: {data["sender"]}\n  • Сотрудник, внесший заявку: {data["employee"]}\n  • Комментарий: {data["comment"]}\n\n  • Комментарий от закупщика: {data["p_comment"]}\n\n • Статус заявки: {data["status"]}'
 
     # Сохраняем заявку в историю
     application_id = idb.applications_manager.save_application(
@@ -633,6 +637,29 @@ async def handle_edit_status_callback(callback_query: CallbackQuery,
     await idb.start_edit_status(callback_query, state, application_id)
 
 
+@router.callback_query(F.data.startswith("edit_contacts:"))
+async def handle_edit_contacts_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    application_id = int(callback_query.data.split(":")[1])
+    await idb.start_edit_contacts(callback_query, state, application_id)
+
+
+@router.callback_query(F.data.startswith("edit_name:"))
+async def handle_edit_name_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    application_id = int(callback_query.data.split(":")[1])
+    await idb.start_edit_name(callback_query, state, application_id)
+
+
+@router.callback_query(F.data.startswith("edit_purchaser_comment:"))
+async def handle_edit_purchaser_comment_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    application_id = int(callback_query.data.split(":")[1])
+    await idb.start_edit_purchaser_comment(callback_query, state, application_id)
+
 # Обработчики состояний редактирования
 @router.message(idb.EditStates.waiting_edit_comment)
 async def handle_edit_comment_input(message: Message, state: FSMContext):
@@ -710,6 +737,129 @@ async def handle_edit_status_input(message: Message, state: FSMContext):
                 await message.answer(response)
         else:
             await message.answer("❌ Ошибка при обновлении статуса")
+
+        await state.clear()
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
+        await state.clear()
+
+@router.message(idb.EditStates.waiting_edit_contacts)
+async def handle_edit_contacts_input(message: Message, state: FSMContext):
+    """Обрабатывает ввод новых контактов"""
+    try:
+        data = await state.get_data()
+        application_id = data.get("edit_application_id")
+
+        if not application_id:
+            await message.answer("❌ Ошибка: не найден ID заявки")
+            await state.clear()
+            return
+
+        new_contacts = message.text.strip()
+
+        if not new_contacts:
+            await message.answer("❌ Контакты не могут быть пустыми")
+            return
+
+        # Обновляем в базе
+        success = idb.applications_manager.update_contacts(
+            application_id, new_contacts)
+
+        if success:
+            await message.answer(f"✅ Контакты обновлены")
+
+            # Показываем обновленную заявку
+            application = idb.applications_manager.get_application_by_id(
+                application_id)
+            if application:
+                response = f"🆔 ID: {application['id']}\n"
+                response += application["application_text"]
+                await message.answer(response)
+        else:
+            await message.answer("❌ Ошибка при обновлении контактов")
+
+        await state.clear()
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
+        await state.clear()
+
+
+@router.message(idb.EditStates.waiting_edit_name)
+async def handle_edit_name_input(message: Message, state: FSMContext):
+    """Обрабатывает ввод нового имени"""
+    try:
+        data = await state.get_data()
+        application_id = data.get("edit_application_id")
+
+        if not application_id:
+            await message.answer("❌ Ошибка: не найден ID заявки")
+            await state.clear()
+            return
+
+        new_name = message.text.strip()
+
+        if not new_name:
+            await message.answer("❌ Имя не может быть пустым")
+            return
+
+        # Обновляем в базе
+        success = idb.applications_manager.update_name(
+            application_id, new_name)
+
+        if success:
+            await message.answer(f"✅ Имя обновлено")
+
+            # Показываем обновленную заявку
+            application = idb.applications_manager.get_application_by_id(
+                application_id)
+            if application:
+                response = f"🆔 ID: {application['id']}\n"
+                response += application["application_text"]
+                await message.answer(response)
+        else:
+            await message.answer("❌ Ошибка при обновлении имени")
+
+        await state.clear()
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
+        await state.clear()
+
+
+@router.message(idb.EditStates.waiting_edit_purchaser_comment)
+async def handle_edit_purchaser_comment_input(message: Message, state: FSMContext):
+    """Обрабатывает ввод нового комментария закупщика"""
+    try:
+        data = await state.get_data()
+        application_id = data.get("edit_application_id")
+
+        if not application_id:
+            await message.answer("❌ Ошибка: не найден ID заявки")
+            await state.clear()
+            return
+
+        new_purchaser_comment = message.text.strip()
+
+        # Комментарий закупщика может быть пустым, поэтому не проверяем на пустоту
+
+        # Обновляем в базе
+        success = idb.applications_manager.update_purchaser_comment(
+            application_id, new_purchaser_comment)
+
+        if success:
+            await message.answer(f"✅ Комментарий закупщика обновлен")
+
+            # Показываем обновленную заявку
+            application = idb.applications_manager.get_application_by_id(
+                application_id)
+            if application:
+                response = f"🆔 ID: {application['id']}\n"
+                response += application["application_text"]
+                await message.answer(response)
+        else:
+            await message.answer("❌ Ошибка при обновлении комментария закупщика")
 
         await state.clear()
 

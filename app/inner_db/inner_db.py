@@ -24,6 +24,9 @@ r_time = datetime.now().strftime("%d.%m.%Y %H:%M")
 class EditStates(StatesGroup):
     waiting_edit_comment = State()
     waiting_edit_status = State()
+    waiting_edit_contacts = State()
+    waiting_edit_name = State()
+    waiting_edit_purchaser_comment = State()
 
 
 class DeleteStates(StatesGroup):
@@ -63,20 +66,56 @@ class SQLiteHistoryManager:
             application_text TEXT NOT NULL,
             comment TEXT NOT NULL,
             status TEXT NOT NULL,
-            created_date TEXT NOT NULL
+            created_date TEXT NOT NULL,
+            contacts TEXT,
+            name TEXT,
+            purchaser_comment TEXT
         )
         """
 
         try:
             cursor = self.connection.cursor()
             cursor.execute(create_table_query)
+
+            # Добавляем новые колонки, если их нет (для существующих баз)
+            self._add_missing_columns()
+
             self.connection.commit()
             logger.info("✅ Таблица applications создана или уже существует")
         except sqlite3.Error as e:
             logger.error(f"❌ Ошибка создания таблицы: {e}")
 
+    def _add_missing_columns(self):
+        """Добавляет отсутствующие колонки в существующую таблицу"""
+        try:
+            cursor = self.connection.cursor()
+
+            # Проверяем существование колонок и добавляем их если нужно
+            columns_to_add = [
+                ('contacts', 'TEXT'),
+                ('name', 'TEXT'),
+                ('purchaser_comment', 'TEXT')
+            ]
+
+            for column_name, column_type in columns_to_add:
+                try:
+                    cursor.execute(f"ALTER TABLE applications ADD COLUMN {column_name} {column_type}")
+                    logger.info(f"✅ Добавлена колонка {column_name}")
+                except sqlite3.OperationalError:
+                    # Колонка уже существует
+                    pass
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Ошибка добавления колонок: {e}")        
+
     def save_application(
-        self, application_text: str, comment: str, status: str
+        self,
+        application_text: str,
+        comment: str,
+        status: str,
+        contacts: str = "",
+        name: str = "",
+        purchaser_comment: str = ""
     ) -> Optional[int]:
         """Сохраняет заявку в базу истории"""
         if not self.connection:
@@ -85,13 +124,19 @@ class SQLiteHistoryManager:
 
         try:
             insert_query = """
-            INSERT INTO applications (application_text, comment, status, created_date)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO applications (
+                application_text, comment, status, created_date, 
+                contacts, name, purchaser_comment
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """
 
             cursor = self.connection.cursor()
             cursor.execute(
-                insert_query, (application_text, comment, status, r_time))
+                insert_query,
+                (application_text, comment, status, r_time,
+                 contacts, name, purchaser_comment)
+            )
 
             new_id = cursor.lastrowid
             self.connection.commit()
@@ -169,7 +214,8 @@ class SQLiteHistoryManager:
 
         try:
             query = """
-            SELECT id, application_text, comment, status, created_date
+            SELECT id, application_text, comment, status, created_date,
+                   contacts, name, purchaser_comment
             FROM applications
             WHERE id = ?
             """
@@ -185,6 +231,9 @@ class SQLiteHistoryManager:
                     "comment": row["comment"],
                     "status": row["status"],
                     "created_date": row["created_date"],
+                    "contacts": row["contacts"] or "",
+                    "name": row["name"] or "",
+                    "purchaser_comment": row["purchaser_comment"] or "",
                 }
             return None
 
@@ -200,7 +249,8 @@ class SQLiteHistoryManager:
 
         try:
             query = """
-            SELECT id, application_text, comment, status, created_date
+            SELECT id, application_text, comment, status, created_date,
+                   contacts, name, purchaser_comment
             FROM applications
             ORDER BY id DESC
             """
@@ -219,6 +269,9 @@ class SQLiteHistoryManager:
                         "comment": row["comment"],
                         "status": row["status"],
                         "created_date": row["created_date"],
+                        "contacts": row["contacts"] or "",
+                        "name": row["name"] or "",
+                        "purchaser_comment": row["purchaser_comment"] or "",
                     }
                 )
 
@@ -238,7 +291,8 @@ class SQLiteHistoryManager:
 
         try:
             query = """
-            SELECT id, application_text, comment, status, created_date
+            SELECT id, application_text, comment, status, created_date,
+                   contacts, name, purchaser_comment
             FROM applications
             WHERE date(created_date) BETWEEN date(?) AND date(?)
             ORDER BY id DESC
@@ -258,6 +312,9 @@ class SQLiteHistoryManager:
                         "comment": row["comment"],
                         "status": row["status"],
                         "created_date": row["created_date"],
+                        "contacts": row["contacts"] or "",
+                        "name": row["name"] or "",
+                        "purchaser_comment": row["purchaser_comment"] or "",
                     }
                 )
 
@@ -355,6 +412,157 @@ class SQLiteHistoryManager:
 
         except sqlite3.Error as e:
             logger.error(f"❌ Ошибка обновления статуса: {e}")
+            return False
+
+    def update_contacts(self, application_id: int, new_contacts: str) -> bool:
+        """Обновляет поле контактов"""
+        if not self.connection:
+            if not self.connect():
+                return False
+
+        try:
+            # Получаем текущую заявку
+            current_record = self.get_application_by_id(application_id)
+            if not current_record:
+                return False
+
+            # Обновляем текст заявки
+            old_text = current_record["application_text"]
+            lines = old_text.split("\n")
+
+            # Заменяем строку с контактами
+            new_lines = []
+            contact_updated = False
+            for line in lines:
+                if line.strip().startswith("• Контакты:"):
+                    new_lines.append(f"  • Контакты: {new_contacts}")
+                    contact_updated = True
+                else:
+                    new_lines.append(line)
+
+            # Если строка с контактами не найдена, добавляем её
+            if not contact_updated:
+                # Находим место для вставки (после имени)
+                for i, line in enumerate(lines):
+                    if line.strip().startswith("• Имя:"):
+                        new_lines.insert(i + 1, f"  • Контакты: {new_contacts}")
+                        break
+
+            new_text = "\n".join(new_lines)
+
+            # Обновляем в базе
+            update_query = """
+            UPDATE applications
+            SET application_text = ?, contacts = ?
+            WHERE id = ?
+            """
+
+            cursor = self.connection.cursor()
+            cursor.execute(
+                update_query, (new_text, new_contacts, application_id))
+            self.connection.commit()
+
+            logger.info(f"✅ Контакты обновлены для заявки {application_id}")
+            return True
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Ошибка обновления контактов: {e}")
+            return False
+
+    def update_name(self, application_id: int, new_name: str) -> bool:
+        """Обновляет поле имени"""
+        if not self.connection:
+            if not self.connect():
+                return False
+
+        try:
+            # Получаем текущую заявку
+            current_record = self.get_application_by_id(application_id)
+            if not current_record:
+                return False
+
+            # Обновляем текст заявки
+            old_text = current_record["application_text"]
+            lines = old_text.split("\n")
+
+            # Заменяем строку с именем
+            new_lines = []
+            for line in lines:
+                if line.strip().startswith("• Имя:"):
+                    new_lines.append(f"  • Имя: {new_name}")
+                else:
+                    new_lines.append(line)
+
+            new_text = "\n".join(new_lines)
+
+            # Обновляем в базе
+            update_query = """
+            UPDATE applications
+            SET application_text = ?, name = ?
+            WHERE id = ?
+            """
+
+            cursor = self.connection.cursor()
+            cursor.execute(
+                update_query, (new_text, new_name, application_id))
+            self.connection.commit()
+
+            logger.info(f"✅ Имя обновлено для заявки {application_id}")
+            return True
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Ошибка обновления имени: {e}")
+            return False
+
+    def update_purchaser_comment(self, application_id: int, new_purchaser_comment: str) -> bool:
+        """Обновляет поле комментария закупщика"""
+        if not self.connection:
+            if not self.connect():
+                return False
+
+        try:
+            # Получаем текущую заявку
+            current_record = self.get_application_by_id(application_id)
+            if not current_record:
+                return False
+
+            # Обновляем текст заявки
+            old_text = current_record["application_text"]
+            lines = old_text.split("\n")
+
+            # Заменяем строку с комментарием закупщика
+            new_lines = []
+            comment_updated = False
+            for line in lines:
+                if line.strip().startswith("• Комментарий от закупщика:"):
+                    new_lines.append(f"  • Комментарий от закупщика: {new_purchaser_comment}")
+                    comment_updated = True
+                else:
+                    new_lines.append(line)
+        
+            # Если строка с комментарием закупщика не найдена, добавляем её в конец
+            if not comment_updated:
+                new_lines.append(f"  • Комментарий от закупщика: {new_purchaser_comment}")
+
+            new_text = "\n".join(new_lines)
+
+            # Обновляем в базе
+            update_query = """
+            UPDATE applications
+            SET application_text = ?, purchaser_comment = ?
+            WHERE id = ?
+            """
+
+            cursor = self.connection.cursor()
+            cursor.execute(
+                update_query, (new_text, new_purchaser_comment, application_id))
+            self.connection.commit()
+
+            logger.info(f"✅ Комментарий закупщика обновлен для заявки {application_id}")
+            return True
+
+        except sqlite3.Error as e:
+            logger.error(f"❌ Ошибка обновления комментария закупщика: {e}")
             return False
 
     def delete_application(self, application_id: int) -> bool:
@@ -646,7 +854,10 @@ async def show_edit_options(callback_query: CallbackQuery,
 
         response = f"✏️ Редактирование заявки ID: {application_id}\n\n"
         response += f"💬 Текущий комментарий: {application['comment']}\n"
-        response += f"📋 Текущий статус: {application['status']}\n\n"
+        response += f"📋 Текущий статус: {application['status']}\n"
+        response += f"📞 Текущие контакты: {application.get('contacts', 'не указаны')}\n"
+        response += f"👤 Текущее имя: {application.get('name', 'не указано')}\n"
+        response += f"💼 Комментарий закупщика: {application.get('purchaser_comment', 'не указан')}\n\n"
         response += "Выберите что хотите изменить:"
 
         keyboard = InlineKeyboardMarkup(
@@ -661,6 +872,24 @@ async def show_edit_options(callback_query: CallbackQuery,
                     InlineKeyboardButton(
                         text="📋 Изменить статус",
                         callback_data=f"edit_status:{application_id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="📞 Изменить контакты",
+                        callback_data=f"edit_contacts:{application_id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="👤 Изменить имя",
+                        callback_data=f"edit_name:{application_id}",
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="💼 Изменить комментарий закупщика",
+                        callback_data=f"edit_purchaser_comment:{application_id}",
                     )
                 ],
                 [
@@ -715,6 +944,72 @@ async def start_edit_status(
         await callback_query.message.answer(
             f"✏️ Введите новый статус для заявки ID: {application_id}\n\n"
             f"Текущий статус: {current_status}\n\n"
+        )
+        await callback_query.answer()
+
+    except Exception as e:
+        await callback_query.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+
+async def start_edit_contacts(
+    callback_query: CallbackQuery, state: FSMContext, application_id: int
+):
+    """Начинает процесс редактирования контактов"""
+    try:
+        await state.update_data(edit_application_id=application_id)
+        await state.set_state(EditStates.waiting_edit_contacts)
+
+        application = applications_manager.get_application_by_id(application_id)
+        current_contacts = application.get("contacts", "") if application else ""
+
+        await callback_query.message.answer(
+            f"📞 Введите новые контакты для заявки ID: {application_id}\n\n"
+            f"Текущие контакты: {current_contacts if current_contacts else 'не указаны'}\n\n"
+            "Пример: +7 (999) 123-45-67, example@email.com"
+        )
+        await callback_query.answer()
+
+    except Exception as e:
+        await callback_query.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+
+async def start_edit_name(
+    callback_query: CallbackQuery, state: FSMContext, application_id: int
+):
+    """Начинает процесс редактирования имени"""
+    try:
+        await state.update_data(edit_application_id=application_id)
+        await state.set_state(EditStates.waiting_edit_name)
+
+        application = applications_manager.get_application_by_id(application_id)
+        current_name = application.get("name", "") if application else ""
+
+        await callback_query.message.answer(
+            f"👤 Введите новое имя для заявки ID: {application_id}\n\n"
+            f"Текущее имя: {current_name if current_name else 'не указано'}\n\n"
+            "Пример: Иванов Иван Иванович"
+        )
+        await callback_query.answer()
+
+    except Exception as e:
+        await callback_query.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+
+async def start_edit_purchaser_comment(
+    callback_query: CallbackQuery, state: FSMContext, application_id: int
+):
+    """Начинает процесс редактирования комментария закупщика"""
+    try:
+        await state.update_data(edit_application_id=application_id)
+        await state.set_state(EditStates.waiting_edit_purchaser_comment)
+
+        application = applications_manager.get_application_by_id(application_id)
+        current_purchaser_comment = application.get("purchaser_comment", "") if application else ""
+
+        await callback_query.message.answer(
+            f"💼 Введите новый комментарий закупщика для заявки ID: {application_id}\n\n"
+            f"Текущий комментарий закупщика: {current_purchaser_comment if current_purchaser_comment else 'не указан'}\n\n"
+            "Пример: Товар заказан, ожидаем поставку"
         )
         await callback_query.answer()
 
