@@ -1,40 +1,64 @@
-from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton,
-                           InlineKeyboardMarkup, InlineKeyboardButton)
-from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 
-main = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Добавить заявку', callback_data='add')],
-    [InlineKeyboardButton(text='Редактировать заявку', callback_data='edit'),
-     InlineKeyboardButton(text='Удалить заявку', callback_data='delete')]
-],
-                            resize_keyboard=True,
-                            input_field_placeholder='Что вы хотите сделать?')
-
-
-purchisers = ['Саша Соколов',
-              'Саша Плотникова', 'Таня Постоногова',
-              'Дуся Никитина', 'Елена Владимировна',
-              'Кирилл Прыскин', 'Не знаю']
-
-
-async def reply_purchisers():
-    keyboard = ReplyKeyboardBuilder()
-    for purchiser in purchisers:
-        keyboard.add(KeyboardButton(text=purchiser))
-    return keyboard.adjust(2).as_markup()
+main = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="✏️Добавить заявку", callback_data="add")],
+        [InlineKeyboardButton(text="📋 Показать историю",
+                              callback_data="history:0")],
+        [InlineKeyboardButton(text="📊 Отчёты", callback_data="reports_menu")],
+        [InlineKeyboardButton(
+            text="🔍Проверить наличие книги", callback_data="baza")],
+    ],
+    resize_keyboard=True,
+    input_field_placeholder="Что вы хотите сделать?",
+)
 
 
-inline_purchisers = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='Саша Соколов', callback_data='sashas')],
-    [InlineKeyboardButton(text='Саша Плотникова', callback_data='sashap')],
-    [InlineKeyboardButton(text='Таня Постоногова', callback_data='tanya')],
-    [InlineKeyboardButton(text='Дуся Никитина', callback_data='dusya')],
-    [InlineKeyboardButton(text='Елена Владимировна', callback_data='ev')],
-    [InlineKeyboardButton(text='Кирилл Прыскин', callback_data='kirill')],
-],
-                            resize_keyboard=True)
+choise = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="✅да", callback_data="yes")],
+        [InlineKeyboardButton(text="❌нет", callback_data="no")],
+    ]
+)
 
-tablica = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text='актуальная таблица стола заказов',
-                          url='https://docs.google.com/spreadsheets/d/1OFLFBRBzfKHQrAkncowUMh1B3PFMD9XXIXFvusDA6l8/edit?gid=808253135#gid=808253135')]
-])
+
+year_confirm_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Да, добавить",
+                              callback_data="yes_old_year")],
+        [InlineKeyboardButton(text="❌ Нет", callback_data="no_old_year")],
+    ]
+)
+
+
+continue_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Да", callback_data="continue_yes"),
+            InlineKeyboardButton(text="❌ Нет", callback_data="continue_no"),
+        ]
+    ]
+)
+
+
+senders = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="🐕ТЗ", callback_data="TZ")],
+        [InlineKeyboardButton(text="🐈ИМ", callback_data="IM")],
+    ]
+)
+
+req_q1 = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="⌨️Ввести артикул",
+                              callback_data="articool")],
+        [
+            InlineKeyboardButton(
+                text="✏️Ввести название вручную", callback_data="neverbook"
+            )
+        ],
+    ]
+)

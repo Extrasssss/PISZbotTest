@@ -1,0 +1,75 @@
+Metadata-Version: 2.1
+Name: sqlserverport
+Version: 1.0.1
+Summary: Query SQL Browser for port used by named instance
+Home-page: https://github.com/gordthompson/sqlserverport
+Author: Gord Thompson
+Author-email: gord@gordthompson.com
+License: MIT
+Project-URL: Documentation, https://github.com/gordthompson/sqlserverport/wiki
+Project-URL: Source, https://github.com/gordthompson/sqlserverport
+Project-URL: Tracker, https://github.com/gordthompson/sqlserverport/issues
+Keywords: Microsoft SQL Server Linux
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: Database :: Front-Ends
+Classifier: Operating System :: Unix
+Description-Content-Type: text/markdown
+
+# sqlserverport
+
+A simple Python module to query the SQL Browser service for the port number of a SQL Server instance. The Linux implementation of Microsoft's "ODBC Driver xx for SQL Server" is (still) unable to resolve instance names, so Windows users can just do
+
+```python
+import pyodbc
+serverspec = r'myserver\SQLEXPRESS'
+conn = pyodbc.connect('DRIVER=ODBC Driver 17 for SQL Server;SERVER={};...'.format(serverspec))
+```
+
+but that won't work on Linux. This module lets us do
+
+```python
+import pyodbc
+import sqlserverport
+servername = 'myserver'
+serverspec = '{0},{1}'.format(
+    servername,
+    sqlserverport.lookup(servername, 'SQLEXPRESS'))
+conn = pyodbc.connect('DRIVER=ODBC Driver 17 for SQL Server;SERVER={};...'.format(serverspec))
+```
+
+## Installing
+
+```
+pip install sqlserverport
+```
+
+## Example
+
+```python
+# example.py
+import sqlserverport
+
+# test data
+server_name = "192.168.0.103"
+instance_name = "SQLEXPRESS"
+
+try:
+    result = r"Instance {0}\{1} is listening on port {2}.".format(
+        server_name,
+        instance_name,
+        sqlserverport.lookup(server_name, instance_name),
+    )
+except sqlserverport.BrowserError as err:
+    result = err.message
+except sqlserverport.NoTcpError as err:
+    result = err.message
+
+print(result)
+```
+
