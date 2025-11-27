@@ -4,17 +4,15 @@ import pyodbc
 from aiogram import BaseMiddleware
 from aiogram.types import Message
 
-import config
 
-import os
-from dotenv import load_dotenv
+from config import Config
 
-load_dotenv()
 
-SERVER_IP = os.getenv('SERVER_IP')
-DB_NAME = os.getenv('DB_NAME')
-SQL_LOGIN = os.getenv('SQL_LOGIN')
-SQL_PASSWORD = os.getenv('SQL_PASSWORD')
+SERVER_IP = Config.SERVER_IP
+DB_NAME = Config.DB_NAME
+SQL_LOGIN = Config.SQL_LOGIN
+SQL_PASSWORD = Config.SQL_PASSWORD
+
 
 class DatabaseMiddleware(BaseMiddleware):
     def __init__(self):

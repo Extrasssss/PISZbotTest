@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  piszbot:
+    build: .
+    container_name: piszbot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - piszbot_data:/app/data
+      - piszbot_logs:/app/logs
+      - piszbot_reports:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  piszbot_data:
+  piszbot_logs:
+  piszbot_reports:

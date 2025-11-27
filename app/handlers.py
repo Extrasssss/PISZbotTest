@@ -6,6 +6,9 @@ import re
 import time
 from io import BytesIO
 
+from aiogram import Bot
+from datetime import timedelta
+
 import Levenshtein
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
@@ -127,7 +130,7 @@ async def first(callback: CallbackQuery, state: FSMContext):
 async def n1(message: Message, state: FSMContext):
     await state.update_data(neverbook=message.text)
     await state.set_state(Add.neverbook_number)
-    await message.answer("☎️Введите номер телефона")
+    await message.answer("☎️Введите номер телефона заказчика")
 
 
 @router.message(Add.article)
@@ -227,13 +230,14 @@ async def handle_article_confirmation(callback: CallbackQuery,
 
         if callback.data == "no":
             await clear_article_data(state)
-            await callback.message.answer("⌨️Введите артикул:")
+            await state.set_state(Add.article)
+            await callback.message.edit_text("⌨️Введите артикул:")
 
         elif callback.data == "yes":
             year_publishing = data.get("current_year")
 
             if year_publishing and year_publishing < 2020:
-                await callback.message.answer(
+                await callback.message.edit_text(
                     f"📅 Внимание! Год издания {year_publishing}.\n"
                     f"Возможно у книги закончился тираж.\n"
                     f"Всё равно добавить эту позицию?",
@@ -242,7 +246,7 @@ async def handle_article_confirmation(callback: CallbackQuery,
             else:
                 await add_book_to_list(state, data)
                 await clear_article_data(state)
-                await callback.message.answer(
+                await callback.message.edit_text(
                     "✅ Позиция добавлена!\nДобавить еще одну позицию?",
                     reply_markup=kb.continue_kb,  # Новая клавиатура для продолжения
                 )
@@ -250,14 +254,15 @@ async def handle_article_confirmation(callback: CallbackQuery,
         elif callback.data == "yes_old_year":
             await add_book_to_list(state, data, is_old_year=True)
             await clear_article_data(state)
-            await callback.message.answer(
+            await callback.message.edit_text(
                 "✅ Позиция добавлена!\nДобавить еще одну позицию?",
                 reply_markup=kb.continue_kb,  # Новая клавиатура для продолжения
             )
 
         elif callback.data == "no_old_year":
             await clear_article_data(state)
-            await callback.message.answer("⌨️Введите артикул:")
+            await state.set_state(Add.article)
+            await callback.message.edit_text("⌨️Введите артикул:")
 
         await callback.answer()
 
@@ -275,12 +280,12 @@ async def handle_continue_confirmation(callback: CallbackQuery,
         if callback.data == "continue_yes":
             # Начинаем новый цикл добавления
             await state.set_state(Add.article)
-            await callback.message.answer("⌨️Введите артикул:")
+            await callback.message.edit_text("⌨️Введите артикул:")
 
         elif callback.data == "continue_no":
             # Завершаем добавление и переходим к следующему шагу
             await state.set_state(Add.number)
-            await callback.message.answer("☎️Введите номер телефона")
+            await callback.message.edit_text("☎️Введите номер телефона заказчика")
             await callback.answer()
 
         await callback.answer()
@@ -320,7 +325,7 @@ async def fourth(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
     elif callback.data == "no":
         await state.set_state(Add.number)
-        await callback.message.answer("☎️Введите номер телефона")
+        await callback.message.answer("☎️Введите номер телефона заказчика")
         await callback.answer()
 
 
@@ -337,7 +342,7 @@ async def fifth(message: Message, state: FSMContext):
         await state.update_data(number=phone)
         await message.answer(f"✅ Номер сохранен: {phone}")
         await state.set_state(Add.name)
-        await message.answer("введите Имя")
+        await message.answer("🙋введите Имя заказчика🙋‍♂️")
         return True
     elif re.match(pattern2, phone):
         # Номер в формате 89990008899 - конвертируем в +79990008899
@@ -345,7 +350,7 @@ async def fifth(message: Message, state: FSMContext):
         await state.update_data(number=formatted_phone)
         await message.answer(f"✅ Номер сохранен: {formatted_phone}")
         await state.set_state(Add.name)
-        await message.answer("введите Имя")
+        await message.answer("🙋введите Имя заказчика🙋‍♂️")
         return True
     else:
         # Анализируем ошибку
@@ -395,7 +400,7 @@ async def n2(message: Message, state: FSMContext):
         await state.update_data(number=phone)
         await message.answer(f"✅ Номер сохранен: {phone}")
         await state.set_state(Add.neverbook_name)
-        await message.answer("введите Имя заказчика")
+        await message.answer("🙋введите Имя заказчика🙋‍♂️")
         return True
     elif re.match(pattern2, phone):
         # Номер в формате 89990008899 - конвертируем в +79990008899
@@ -468,7 +473,7 @@ async def seven(callback: CallbackQuery, state: FSMContext):
         sender = "🐈ИМ"
     await state.update_data(sender=sender)
     await state.set_state(Add.employee)
-    await callback.message.answer("🐵Введите своё имя")
+    await callback.message.edit_text("🐵Введите своё имя")
 
 
 @router.callback_query(Add.neverbook_senders)
@@ -479,30 +484,30 @@ async def n4(callback: CallbackQuery, state: FSMContext):
         sender = "🐈ИМ"
     await state.update_data(sender=sender)
     await state.set_state(Add.neverbook_employee)
-    await callback.message.answer("🐵Введите своё имя")
+    await callback.message.edit_text("🐵Введите своё имя")
 
 
 @router.message(Add.employee)
 async def precom(message: Message, state: FSMContext):
     await state.update_data(employee=message.text)
     await state.set_state(Add.comment)
-    await message.answer("🏷️Комментарий")
+    await message.answer("🏷️Комментарий", reply_markup=kb.skip)
 
 
 @router.message(Add.neverbook_employee)
 async def prencom(message: Message, state: FSMContext):
     await state.update_data(employee=message.text)
     await state.set_state(Add.neverbook_comment)
-    await message.answer("🏷️Комментарий")
+    await message.answer("🏷️Комментарий", reply_markup=kb.n_skip)
 
 
-@router.message(Add.comment)
-async def nineth(message: Message, state: FSMContext):
-    await state.update_data(comment=message.text)
+async def complete_application(message: Message, state: FSMContext, bot: Bot, comment: str = ""):
+
     status = "Создана"
     p_comment = ""
     await state.update_data(status=status,
-                            p_comment=p_comment)
+                            p_comment=p_comment,
+                            comment=comment)
     data = await state.get_data()
     books = data.get("books")
     rebooks = format_final_result(books)
@@ -517,7 +522,7 @@ async def nineth(message: Message, state: FSMContext):
 
     # Отправляем ответ пользователю
     await message.answer(application_text)
-
+    await delete_bot_conversation(bot, message.chat.id, hours=2)
     # Добавляем кнопку для просмотра истории
     if application_id:
         keyboard = InlineKeyboardMarkup(
@@ -536,14 +541,23 @@ async def nineth(message: Message, state: FSMContext):
 
     await state.clear()
 
+@router.message(Add.comment)
+async def nineth(message: Message, state: FSMContext):
+    await complete_application(message, state, message.text)
 
-@router.message(Add.neverbook_comment)
-async def n5(message: Message, state: FSMContext):
-    await state.update_data(comment=message.text)
+# Хэндлер для пропуска комментария
+@router.callback_query(F.data == "skip")
+async def skip_comment(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Комментарий пропущен")
+    await complete_application(callback.message, state, "")
+
+
+async def n5(message: Message, state: FSMContext, bot: Bot, comment: str = ""):
     status = "Создана"
     p_comment = ""
     await state.update_data(status=status,
-                            p_comment=p_comment)
+                            p_comment=p_comment,
+                            comment=comment)
     data = await state.get_data()
     application_text = f'Заявка принята.\n   • Дата: {r_time}\n\n📚Книга:\n   • {data["neverbook"]}\n\n  • Контакты: {data["number"]}\n  • Имя: {data["name"]}\n  • Отдел: {data["sender"]}\n  • Сотрудник, внесший заявку: {data["employee"]}\n  • Комментарий: {data["comment"]}\n\n  • Комментарий от закупщика: {data["p_comment"]}\n\n • Статус заявки: {data["status"]}'
 
@@ -556,7 +570,7 @@ async def n5(message: Message, state: FSMContext):
 
     # Отправляем ответ пользователю
     await message.answer(application_text)
-
+    await delete_bot_conversation(bot, message.chat.id, hours=2)
     # Добавляем кнопку для просмотра истории
     if application_id:
         keyboard = InlineKeyboardMarkup(
@@ -574,6 +588,48 @@ async def n5(message: Message, state: FSMContext):
         )
 
     await state.clear()
+
+@router.message(Add.neverbook_comment)
+async def n_comment(message: Message, state: FSMContext):
+    await n5(message, state, message.text)
+
+# Хэндлер для пропуска комментария
+@router.callback_query(F.data == "n_skip")
+async def n_skip_comment(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Комментарий пропущен")
+    await n5(callback.message, state, "")
+
+
+async def delete_bot_conversation(bot: Bot, chat_id: int, hours: int = 2):
+    """Удаляет сообщения бота и пользователя за указанный период"""
+    try:
+        time_threshold = datetime.datetime.now() - timedelta(hours=hours)
+        messages_to_delete = []
+        
+        async for message in bot.get_chat_history(chat_id):
+            message_time = message.date.replace(tzinfo=None)
+            
+            # Если сообщение старше порога - прерываем
+            if message_time < time_threshold:
+                break
+                
+            # Добавляем все сообщения (или можно фильтровать только от бота/пользователя)
+            messages_to_delete.append(message.message_id)
+        
+        if messages_to_delete:
+            print(f"Найдено {len(messages_to_delete)} сообщений для удаления")
+            
+            # Удаляем в обратном порядке (от старых к новым)
+            for i in range(0, len(messages_to_delete), 100):
+                chunk = messages_to_delete[i:i + 100]
+                await bot.delete_messages(chat_id=chat_id, message_ids=chunk)
+                await asyncio.sleep(0.1)
+                
+        else:
+            print("Нет сообщений для удаления")
+            
+    except Exception as e:
+        print(f"Ошибка при очистке диалога: {e}")
 
 
 # Обработчики истории, редактирования и удаления
@@ -1651,6 +1707,17 @@ async def send_search_results(
                                            reply_markup=keyboard)
             else:
                 await message.answer(response, reply_markup=keyboard)
+        
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📋 Показать историю заявок",
+                        callback_data="history:0"
+                    )
+                ]
+            ]
+        )
 
     except Exception as e:
         if loading_msg:
@@ -1759,7 +1826,7 @@ def get_book_image_path(filepath: str) -> str:
         clean_path = filepath.strip().replace('"', "").replace("'", "")
 
         # Базовый путь к папке с изображениями (настройте под вашу структуру)
-        base_image_path = "C:\\Path\\To\\Images\\"  # Замените на актуальный путь
+        base_image_path = "/mnt/md3/servers/imagessmb/images"  # Замените на актуальный путь
 
         # Формируем полный путь
         full_path = os.path.join(base_image_path, clean_path)

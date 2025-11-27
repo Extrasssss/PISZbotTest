@@ -62,3 +62,15 @@ req_q1 = InlineKeyboardMarkup(
         ],
     ]
 )
+
+skip = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="⏭️ Пропустить", callback_data="skip")],
+    ]
+)
+
+n_skip = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="⏭️ Пропустить", callback_data="n_skip")],
+    ]
+)
