@@ -1,6 +1,6 @@
 from typing import Any, Awaitable, Callable, Dict
 
-import pyodbc
+import pymssql
 from aiogram import BaseMiddleware
 from aiogram.types import Message
 
@@ -38,7 +38,7 @@ class DatabaseMiddleware(BaseMiddleware):
     def connect_to_1c_77_sql(self):
         """Установка соединения с SQL Server"""
         try:
-            conn = pyodbc.connect(
+            conn = pymssql.connect(
                 f"DRIVER={{SQL Server}};"
                 f"SERVER={SERVER_IP};"
                 f"DATABASE={DB_NAME};"

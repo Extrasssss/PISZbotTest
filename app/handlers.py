@@ -12,7 +12,7 @@ from datetime import timedelta
 import Levenshtein
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
-import pyodbc
+import pymssql
 from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -136,7 +136,7 @@ async def n1(message: Message, state: FSMContext):
 @router.message(Add.article)
 async def third(message: Message,
                 state: FSMContext,
-                db_connection: pyodbc.Connection):
+                db_connection: pymssql.Connection):
     code = message.text.strip()
     try:
         #   Проверяем валидность кода
@@ -145,7 +145,7 @@ async def third(message: Message,
             return
 
         # Выполняем запрос к базе данных
-        cursor = db_connection.cursor()
+        cursor = db_connection.cursor(as_dict=True)
         query = """
         SELECT [remain],
         [code],
@@ -160,7 +160,7 @@ async def third(message: Message,
         [format_],
         [volume]
         FROM [torgnew].[dbo].[nomen_bot]
-        WHERE [code] = ?
+        WHERE [code] = %s
         """  # add [filepath]
         cursor.execute(query, code)
         rows = cursor.fetchall()
@@ -176,33 +176,33 @@ async def third(message: Message,
 
         row = rows[0]
 
-        response += f"   • Артикул: `{row.code}`\n"
-        response += f"   • Название: {row.nomen_name}\n"
-        response += f"   • Издательство: {row.Publisher_name}\n"
-        response += f"   • Год издания: {row.YearPublishing}\n"
+        response += f"   • Артикул: `{row['code']}`\n"
+        response += f"   • Название: {row['nomen_name']}\n"
+        response += f"   • Издательство: {row['Publisher_name']}\n"
+        response += f"   • Год издания: {row['YearPublishing']}\n"
 
-        if row.IsInoagent == 1:
+        if row['IsInoagent'] == 1:
             response = f"❌НАСТОЯЩИЙ МАТЕРИАЛ (ИНФОРМАЦИЯ)❌\n❌ПРОИЗВЕДЕН ИНОСТРАННЫМ АГЕНТОМ,❌\n❌ЛИБО КАСАЕТСЯ ДЕЯТЕЛЬНОСТИ ИНОСТРАННОГО АГЕНТА❌\n❗❗❗КНИГА НЕ ДОСТУПНА ДЛЯ ПРОДАЖИ❗❗❗\n Введите другой артикул:"
             await message.answer(response)
             return
 
-        if row.Publisher_name in zakupki.dima:
+        if row['Publisher_name'] in zakupki.dima:
             response += f"   • Закупщик: Дима Николюк\n"
-        if row.Publisher_name in zakupki.sashap:
+        if row['Publisher_name'] in zakupki.sashap:
             response += f"   • Закупщик: Саша Плотникова\n"
-        if row.Publisher_name in zakupki.dusya:
+        if row['Publisher_name'] in zakupki.dusya:
             response += f"   • Закупщик: Дуся Никитина\n"
-        if row.Publisher_name in zakupki.tanya:
+        if row['Publisher_name'] in zakupki.tanya:
             response += f"   • Закупщик: Таня Постоногова\n"
-        if row.Publisher_name in zakupki.yulya:
+        if row['Publisher_name'] in zakupki.yulya:
             response += f"   • Закупщик: Юля Харитонова\n"
-        if row.Publisher_name in zakupki.ev:
+        if row['Publisher_name'] in zakupki.ev:
             response += f"   • Закупщик: Елена Владимировна\n"
-        if row.Publisher_name in zakupki.kirill:
+        if row['Publisher_name'] in zakupki.kirill:
             response += f"   • Закупщик: Кирилл Прыскин\n"
 
         await state.update_data(article=response,
-                                current_year=row.YearPublishing)
+                                current_year=row['YearPublishing'])
         await state.set_state(Add.approve)
         data = await state.get_data()
         await message.answer(
@@ -210,7 +210,7 @@ async def third(message: Message,
             reply_markup=kb.choise
         )
 
-    except pyodbc.Error as e:
+    except pymssql.Error as e:
         await message.answer("❌ Ошибка при работе с базой данных")
         print(f"Database error: {e}")
     except Exception as e:
@@ -1128,7 +1128,7 @@ async def handle_search_callback(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.text.regexp(r"^\d{1,10}$"))
 async def search_by_code_direct(message: Message,
-                                db_connection: pyodbc.Connection):
+                                db_connection: pymssql.Connection):
     """Обработчик прямого ввода кода товара (только цифры)"""
     code = message.text.strip()
     await search_in_database(message, db_connection, code)
@@ -1136,7 +1136,7 @@ async def search_by_code_direct(message: Message,
 
 @router.message(F.text.startswith("код:"))
 async def search_by_code_prefix(message: Message,
-                                db_connection: pyodbc.Connection):
+                                db_connection: pymssql.Connection):
     """Обработчик ввода кода с префиксом 'код:'"""
     try:
         code = message.text.split(":", 1)[1].strip()
@@ -1226,7 +1226,7 @@ async def start_periodic_cleanup():
 
 # Основные функции поиска (остаются без изменений, только обновляются вызовы)
 async def search_in_database(
-    message: Message, db_connection: pyodbc.Connection, search_term: str
+    message: Message, db_connection: pymssql.Connection, search_term: str
 ):
     """Общая функция поиска в базе данных по коду или тексту"""
     loading_msg = None
@@ -1249,7 +1249,7 @@ async def search_in_database(
                 loading_msg=loading_msg
             )
 
-    except pyodbc.Error as e:
+    except pymssql.Error as e:
         if loading_msg:
             await edit_loading_message(
                 loading_msg, "❌ Ошибка при работе с базой данных"
@@ -1269,13 +1269,13 @@ async def search_in_database(
 
 async def search_by_code(
     message: Message,
-    db_connection: pyodbc.Connection,
+    db_connection: pymssql.Connection,
     code: str,
     loading_msg: Message = None,
 ):
     """Поиск по коду товара"""
     try:
-        cursor = db_connection.cursor()
+        cursor = db_connection.cursor(as_dict=True)
         query = """
         SELECT [remain],
         [code],
@@ -1291,7 +1291,7 @@ async def search_by_code(
         [volume],
         [filepath]
         FROM [torgnew].[dbo].[nomen_bot]
-        WHERE [code] = ?
+        WHERE [code] = %s
         """
         cursor.execute(query, code)
         rows = cursor.fetchall()
@@ -1336,7 +1336,7 @@ async def search_by_code(
 
 async def search_by_text(
     message: Message,
-    db_connection: pyodbc.Connection,
+    db_connection: pymssql.Connection,
     search_text: str,
     page: int = 1,
     loading_msg: Message = None,
@@ -1355,7 +1355,7 @@ async def search_by_text(
                 await message.answer("❌ Введите текст для поиска")
             return
 
-        cursor = db_connection.cursor()
+        cursor = db_connection.cursor(as_dict=True)
 
         # Получаем все возможные товары для анализа
         all_products_query = """
@@ -1374,8 +1374,8 @@ async def search_by_text(
         scored_products = []
 
         for product in all_products:
-            nomen_name = product.nomen_name_safe or ""
-            author_name = product.author_name_safe or ""
+            nomen_name = product['nomen_name_safe'] or ""
+            author_name = product['author_name_safe'] or ""
 
             # Создаем полный текст для поиска
             full_text = f"{nomen_name} {author_name}".strip()
@@ -1390,7 +1390,7 @@ async def search_by_text(
             if match_score > 0.4:
                 scored_products.append(
                     {
-                        "code": product.code,
+                        "code": product['code'],
                         "nomen_name": nomen_name,
                         "author_name": author_name,
                         "score": match_score,
@@ -1468,7 +1468,7 @@ async def send_text_search_results(
         # Группируем результаты по коду товара
         products = {}
         for row in rows:
-            code = row.code
+            code = row['code']
             if code not in products:
                 products[code] = []
             products[code].append(row)
@@ -1501,18 +1501,18 @@ async def send_text_search_results(
                 relevance_indicator = "🟠"
 
             response += f"**{i + (page-1)*items_per_page}. {relevance_indicator} Код: `{code}`**\n"
-            response += f"   • Название: {first_row.nomen_name or 'Не указано'}\n"
-            response += f"   • Автор: {first_row.author_name or 'Не указан'}\n"
+            response += f"   • Название: {first_row['nomen_name'] or 'Не указано'}\n"
+            response += f"   • Автор: {first_row['author_name'] or 'Не указан'}\n"
             response += (
-                f"   • Издательство: {first_row.Publisher_name or 'Не указано'}\n"
+                f"   • Издательство: {first_row['Publisher_name'] or 'Не указано'}\n"
             )
-            response += f"   • Год издания: {first_row.YearPublishing or 'Не указан'}\n"
-            response += f"   • Цена: {first_row.price or 'Не указана'} руб.\n"
+            response += f"   • Год издания: {first_row['YearPublishing'] or 'Не указан'}\n"
+            response += f"   • Цена: {first_row['price'] or 'Не указана'} руб.\n"
 
             # Показываем склады для этого товара
             for j, row in enumerate(product_rows, 1):
-                response += f"   📦 Склад{j}: {row.sklad_name or 'Не указан'}\n"
-                response += f"   • Количество: **{row.remain or 0}** шт.\n"
+                response += f"   📦 Склад{j}: {row['sklad_name'] or 'Не указан'}\n"
+                response += f"   • Количество: **{row['remain'] or 0}** шт.\n"
                 if j < len(product_rows):
                     response += "   ─────────────────\n"
 
@@ -1597,7 +1597,7 @@ async def send_search_results(
         # Группируем результаты по коду товара
         products = {}
         for row in rows:
-            code = row.code
+            code = row['code']
             if code not in products:
                 products[code] = []
             products[code].append(row)
@@ -1606,27 +1606,27 @@ async def send_search_results(
 
         for code, product_rows in products.items():
             first_row = product_rows[0]
-            response += f"   • Код: `{first_row.code}`\n"
-            response += f"   • Название: {first_row.nomen_name or 'Не указано'}\n"
-            response += f"   • Автор: {first_row.author_name or 'Не указан'}\n"
+            response += f"   • Код: `{first_row['code']}`\n"
+            response += f"   • Название: {first_row['nomen_name'] or 'Не указано'}\n"
+            response += f"   • Автор: {first_row['author_name'] or 'Не указан'}\n"
             response += (
-                f"   • Издательство: {first_row.Publisher_name or 'Не указано'}\n"
+                f"   • Издательство: {first_row['Publisher_name'] or 'Не указано'}\n"
             )
-            response += f"   • Год издания: {first_row.YearPublishing or 'Не указан'}\n"
-            response += f"   • Обложка: {first_row.binding_name or 'Не указана'}\n"
-            response += f"   • Формат: {first_row.format_ or 'Не указан'}\n"
-            response += f"   • Объем: {first_row.volume or 'Не указан'} стр.\n"
-            response += f"   • Цена: {first_row.price or 'Не указана'}\n\n"
+            response += f"   • Год издания: {first_row['YearPublishing'] or 'Не указан'}\n"
+            response += f"   • Обложка: {first_row['binding_name'] or 'Не указана'}\n"
+            response += f"   • Формат: {first_row['format_'] or 'Не указан'}\n"
+            response += f"   • Объем: {first_row['volume'] or 'Не указан'} стр.\n"
+            response += f"   • Цена: {first_row['price'] or 'Не указана'}\n\n"
 
             for i, row in enumerate(product_rows, 1):
-                response += f"   📦 Склад{i}: {row.sklad_name or 'Не указан'}\n"
-                response += f"   • Количество{i}: **{row.remain or 0}** шт.\n"
+                response += f"   📦 Склад{i}: {row['sklad_name'] or 'Не указан'}\n"
+                response += f"   • Количество{i}: **{row['remain'] or 0}** шт.\n"
                 if i < len(product_rows):
                     response += "   ─────────────────\n"
 
             response += "\n" + "=" * 50 + "\n\n"
 
-        if row.IsInoagent == 1:
+        if row['IsInoagent'] == 1:
             response = f"❌НАСТОЯЩИЙ МАТЕРИАЛ (ИНФОРМАЦИЯ)❌\n❌ПРОИЗВЕДЕН ИНОСТРАННЫМ АГЕНТОМ,❌\n❌ЛИБО КАСАЕТСЯ ДЕЯТЕЛЬНОСТИ ИНОСТРАННОГО АГЕНТА❌\n❗❗❗КНИГА НЕ ДОСТУПНА ДЛЯ ПРОДАЖИ❗❗❗\n Введите другой артикул:"
             await message.answer(response)
             return
@@ -1634,8 +1634,8 @@ async def send_search_results(
         # Остальной код без изменений...
         media_files = []
 
-        if first_row.filepath:
-            book_image_path = get_book_image_path(first_row.filepath)
+        if first_row['filepath']:
+            book_image_path = get_book_image_path(first_row['filepath'])
             if book_image_path and os.path.exists(book_image_path):
                 try:
                     book_photo = FSInputFile(book_image_path)
@@ -1644,9 +1644,9 @@ async def send_search_results(
                     print(f"Error loading book image: {e}")
 
         # Добавляем изображение сравнения форматов если есть формат
-        if first_row.format_:
+        if first_row['format_']:
             format_image_buffer = create_format_comparison_image(
-                first_row.format_)
+                first_row['format_'])
             if format_image_buffer:
                 format_photo = BufferedInputFile(
                     format_image_buffer.getvalue(),
@@ -1733,88 +1733,76 @@ async def send_search_results(
 
 
 # Обработчик для кнопок пагинации
+# Обработчик для кнопок пагинации - ИСПРАВЛЕННАЯ БЫСТРАЯ ВЕРСИЯ
 async def handle_pagination_callback(
     callback_query: CallbackQuery, db_connection: pyodbc.Connection
 ):
-    """Обработка нажатий на кнопки пагинации"""
+    """ИСПРАВЛЕННАЯ быстрая версия обработки пагинации"""
+    # 🚀 Мгновенный ответ
+    try:
+        await callback_query.answer()
+    except:
+        return
+
+    # 🚀 Быстрый парсинг
+    try:
+        if not callback_query.data.startswith("page_"):
+            return
+            
+        _, session_id, page_str = callback_query.data.split("_", 2)
+        new_page = int(page_str)
+    except:
+        return
+
     loading_msg = None
     try:
-        data = callback_query.data
+        # 🚀 Отправляем загрузку
+        loading_msg = await send_loading_message(callback_query.message)
+        
+        # 🚀 Получаем сессию
+        session = get_search_session(session_id)
+        
+        # 🚀 Fallback на последнюю сессию
+        if not session:
+            user_sessions = get_user_sessions(callback_query.from_user.id)
+            if not user_sessions:
+                await loading_msg.edit_text("❌ Сессия устарела")
+                return
+            session_id, session = next(iter(user_sessions.items()))
 
-        if data.startswith("page_"):
-            parts = data.split("_")
-            if len(parts) >= 3:
-                session_id = parts[1]
-                new_page = int(parts[2])
+        # 🚀 Удаляем старое сообщение (с await)
+        try:
+            await callback_query.message.delete()
+        except Exception as delete_error:
+            print(f"⚠️ Delete error (ignored): {delete_error}")
+            # Игнорируем ошибки удаления, продолжаем работу
 
-                # Отправляем сообщение "загрузка"
-                loading_msg = await send_loading_message(
-                    callback_query.message
-                    )
-
-                # Получаем сессию поиска
-                session = get_search_session(session_id)
-                if not session:
-                    # Пытаемся найти последнюю сессию пользователя
-                    user_sessions = get_user_sessions(
-                        callback_query.from_user.id)
-                    if user_sessions:
-                        # Берем последнюю сессию пользователя
-                        session_id, session = list(user_sessions.items())[-1]
-                        print(
-                            f"Используем последнюю сессию пользователя: {session_id}")
-                    else:
-                        if loading_msg:
-                            await edit_loading_message(
-                                loading_msg,
-                                "❌ Сессия поиска устарела. Начните новый поиск.",
-                            )
-                        else:
-                            await callback_query.answer(
-                                "❌ Сессия поиска устарела. Начните новый поиск."
-                            )
-                        return
-
-                # Удаляем старое сообщение (опционально)
-                try:
-                    await callback_query.message.delete()
-                except:
-                    pass  # Игнорируем ошибки удаления
-
-                # Выполняем поиск с новой страницей
-                if session.search_type == "code":
-                    # Для поиска по коду просто показываем результаты
-                    await get_search_results_page(
-                        callback_query.message,
-                        db_connection,
-                        session_id,
-                        new_page,
-                        loading_msg=loading_msg,
-                    )
-                else:
-                    # Для текстового поиска выполняем запрос с новой страницей
-                    await search_by_text(
-                        callback_query.message,
-                        db_connection,
-                        session.search_term,
-                        new_page,
-                        loading_msg,
-                    )
-
-                await callback_query.answer(f"Страница {new_page}")
-
-    except Exception as e:
-        if loading_msg:
-            await edit_loading_message(
-                loading_msg, "❌ Ошибка при переключении страницы"
+        # 🚀 Выполняем поиск
+        if session.search_type == "code":
+            await get_search_results_page(
+                callback_query.message,
+                db_connection,
+                session_id,
+                new_page,
+                loading_msg=loading_msg,
             )
         else:
-            await callback_query.answer("❌ Ошибка при переключении страницы")
-        print(f"Pagination error: {e}")
-        import traceback
+            await search_by_text(
+                callback_query.message,
+                db_connection,
+                session.search_term,
+                new_page,
+                loading_msg,
+            )
 
-        print(f"Full traceback: {traceback.format_exc()}")
-
+    except Exception as e:
+        # 🚀 Минимальная обработка ошибок
+        try:
+            if loading_msg:
+                await loading_msg.edit_text("❌ Ошибка переключения страницы")
+        except:
+            pass
+        print(f"Quick pagination error: {e}")
 
 def get_book_image_path(filepath: str) -> str:
     """Преобразует путь из базы данных в полный путь к файлу"""
@@ -1824,9 +1812,10 @@ def get_book_image_path(filepath: str) -> str:
 
         # Очищаем путь от лишних символов
         clean_path = filepath.strip().replace('"', "").replace("'", "")
+        clean_path = clean_path.replace("\\", "/").replace("//", "/")
 
-        # Базовый путь к папке с изображениями (настройте под вашу структуру)
-        base_image_path = "/mnt/md3/servers/imagessmb/images"  # Замените на актуальный путь
+        # Базовый путь к папке с изображениями - ИЗМЕНЕНИЕ ТОЛЬКО ЗДЕСЬ
+        base_image_path = "/mnt/images"  # ✅ Изменили путь для Docker
 
         # Формируем полный путь
         full_path = os.path.join(base_image_path, clean_path)
@@ -2025,7 +2014,7 @@ def extract_all_numbers(text: str):
 
 
 @router.message(Command("d"))
-async def search_dubbles_command(message: Message, db_connection: pyodbc.Connection):
+async def search_dubbles_command(message: Message, db_connection: pymssql.Connection):
     """Обработчик команды /d для поиска дублей"""
     try:
         # Списки для сравнения
@@ -2041,7 +2030,7 @@ async def search_dubbles_command(message: Message, db_connection: pyodbc.Connect
         processing_msg = await message.answer("🔍 Ищу данные в базе...")
 
         # Выполняем запрос к базе данных
-        cursor = db_connection.cursor()
+        cursor = db_connection.cursor(as_dict=True)
         query = """
         SELECT DISTINCT [Publisher_name]
         FROM [torgnew].[dbo].[nomen_bot]
@@ -2104,7 +2093,7 @@ async def search_dubbles_command(message: Message, db_connection: pyodbc.Connect
 
 
 @router.message(Command("search"))
-async def handle_search_command(message: Message, db_connection: pyodbc.Connection):
+async def handle_search_command(message: Message, db_connection: pymssql.Connection):
     """Обработчик команды /search"""
     if len(message.text.split()) > 1:
         search_term = message.text.split(maxsplit=1)[1]
@@ -2117,7 +2106,7 @@ async def handle_search_command(message: Message, db_connection: pyodbc.Connecti
 
 # Обработчик текстовых сообщений
 @router.message(F.text & ~F.text.startswith("/"))
-async def handle_text_message(message: Message, db_connection: pyodbc.Connection):
+async def handle_text_message(message: Message, db_connection: pymssql.Connection):
     """Обработчик текстовых сообщений (не команд)"""
     search_term = message.text.strip()
     if search_term:
@@ -2129,7 +2118,7 @@ async def handle_text_message(message: Message, db_connection: pyodbc.Connection
 # Обработчики callback-запросов для пагинации
 @router.callback_query(F.data.startswith("page_"))
 async def handle_page_callback(
-    callback: CallbackQuery, db_connection: pyodbc.Connection
+    callback: CallbackQuery, db_connection: pymssql.Connection
 ):
     """Обработчик переключения страниц"""
     await handle_pagination_callback(callback, db_connection)
@@ -2253,7 +2242,7 @@ def calculate_match_score(product_text: str, search_words: list) -> float:
 
 async def get_search_results_page(
     message: Message,
-    db_connection: pyodbc.Connection,
+    db_connection: pymssql.Connection,
     session_id: str,
     page: int = 1,
     pre_scored_products: list = None,
@@ -2268,7 +2257,7 @@ async def get_search_results_page(
             await message.answer("❌ Сессия поиска устарела")
         return
 
-    cursor = db_connection.cursor()
+    cursor = db_connection.cursor(as_dict=True)
     items_per_page = session.items_per_page
     offset = (page - 1) * items_per_page
 
@@ -2277,7 +2266,7 @@ async def get_search_results_page(
         sorted_products = pre_scored_products
     else:
         # Получаем и сортируем товары заново
-        codes_placeholder = ",".join(["?" for _ in session.matched_codes])
+        codes_placeholder = ",".join(["%s" for _ in session.matched_codes])
 
         # Сначала получаем базовые данные товаров
         base_query = f"""
@@ -2322,7 +2311,7 @@ async def get_search_results_page(
         return
 
     # Упрощенный запрос без сложного ORDER BY
-    codes_placeholder = ",".join(["?" for _ in page_codes])
+    codes_placeholder = ",".join(["%s" for _ in page_codes])
 
     data_query = f"""
     SELECT [remain],
@@ -2342,11 +2331,11 @@ async def get_search_results_page(
     WHERE [code] IN ({codes_placeholder})
     """
 
-    cursor.execute(data_query, list(page_codes))
+    cursor.execute(data_query, tuple(page_codes))
     rows = cursor.fetchall()
 
     # Сортируем результаты в Python согласно нашему порядку
-    code_to_row = {row.code: row for row in rows}
+    code_to_row = {row['code']: row for row in rows}
     sorted_rows = []
     for code in page_codes:
         if code in code_to_row:

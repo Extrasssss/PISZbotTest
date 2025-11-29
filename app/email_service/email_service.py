@@ -5,8 +5,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from config import EMAIL_CONFIG
-
+from config import Config
 logger = logging.getLogger(__name__)
 
 
@@ -15,12 +14,13 @@ def send_email_with_attachment(
 ) -> bool:
     """Отправляет email с вложением"""
     try:
+        # 🛠️ ИСПРАВЛЕНИЕ: Используем EMAIL_CONFIG вместо прямых атрибутов
         if to_email is None:
-            to_email = EMAIL_CONFIG["email_to"]
+            to_email = Config.EMAIL_CONFIG["email_to"]
 
         # Создаем сообщение
         msg = MIMEMultipart()
-        msg["From"] = EMAIL_CONFIG["email_from"]
+        msg["From"] = Config.EMAIL_CONFIG["email_from"]
         msg["To"] = to_email
         msg["Subject"] = subject
 
@@ -29,37 +29,33 @@ def send_email_with_attachment(
 
         # Добавляем вложение с правильным MIME-типом
         if attachment_path and os.path.exists(attachment_path):
-            # Получаем имя файла с расширением
             filename = os.path.basename(attachment_path)
 
-            # Читаем файл
             with open(attachment_path, "rb") as file:
                 file_data = file.read()
 
-            # Создаем MIME часть для Excel файла
             part = MIMEApplication(file_data, Name=filename)
-
-            # Добавляем заголовки для вложения
             part["Content-Disposition"] = f'attachment; filename="{filename}"'
-
-            # Устанавливаем правильный MIME-тип для Excel
             part.add_header(
                 "Content-Type",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
-
             msg.attach(part)
 
-        # Создаем SMTP сессию
+        # 🛠️ ИСПРАВЛЕНИЕ: Используем EMAIL_CONFIG для SMTP настроек
         server = smtplib.SMTP(
-            EMAIL_CONFIG["smtp_server"], EMAIL_CONFIG["smtp_port"])
-        server.starttls()  # Включаем шифрование
-        server.login(EMAIL_CONFIG["email_from"],
-                     EMAIL_CONFIG["email_password"])
+            Config.EMAIL_CONFIG["smtp_server"], 
+            Config.EMAIL_CONFIG["smtp_port"]
+        )
+        server.starttls()
+        server.login(
+            Config.EMAIL_CONFIG["email_from"],
+            Config.EMAIL_CONFIG["email_password"]
+        )
 
         # Отправляем email
         text = msg.as_string()
-        server.sendmail(EMAIL_CONFIG["email_from"], to_email, text)
+        server.sendmail(Config.EMAIL_CONFIG["email_from"], to_email, text)
         server.quit()
 
         logger.info(f"✅ Email отправлен на {to_email} с вложением {filename}")

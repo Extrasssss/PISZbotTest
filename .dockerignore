@@ -3,6 +3,9 @@ __pycache__
 *.pyo
 *.pyd
 .Python
+env/
+venv/
+.venv/
 .env
 .git
 .gitignore
@@ -13,6 +16,9 @@ docker-compose.yml
 .vscode
 *.log
 logs/
-data/
-applications.db
-venv/
+reports/venv
+reports/env
+.gitignore
+debug_search_*.html
+PISZbot.zip
+test.py

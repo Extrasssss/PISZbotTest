@@ -6,8 +6,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     python3-dev \
-    unixodbc-dev \
-    freetds-dev \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -18,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем исходный код
 COPY . .
 
-# Создаем необходимые директории
-RUN mkdir -p /app/logs /app/data /app/reports
+# Создаем структуру директорий (будут перезаписаны volumes)
+RUN mkdir -p /app/data /app/logs /app/reports /app/cache
 
 # Создаем безопасного пользователя
 RUN groupadd -r app && useradd -r -g app app

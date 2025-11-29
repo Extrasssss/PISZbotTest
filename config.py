@@ -1,9 +1,16 @@
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from pathlib import Path
 
 # Загружаем переменные окружения
 load_dotenv()
+
+# Правильный путь к базе
+DB_PATH = "/app/applications.db"
+DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+print(f"📁 Используется база: {DB_PATH}")
 
 # Email Configuration (вне класса для обратной совместимости)
 EMAIL_CONFIG = {
@@ -44,3 +51,12 @@ class Config:
 
 # Алиасы для обратной совместимости
 TOKEN = Config.TOKEN
+
+def ensure_db_exists():
+    """Проверяет что база доступна"""
+    if not Path(DB_PATH).exists():
+        print(f"⚠️ База не найдена по пути: {DB_PATH}")
+    else:
+        print(f"✅ База найдена: {DB_PATH}")
+
+ensure_db_exists()
