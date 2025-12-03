@@ -22,3 +22,8 @@ reports/env
 debug_search_*.html
 PISZbot.zip
 test.py
+data/
+applications.db
+backups/
+*.db
+*.db.*

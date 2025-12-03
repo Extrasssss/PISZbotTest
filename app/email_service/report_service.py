@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import time
+import tempfile
 from datetime import datetime, timedelta
 from threading import Thread
 from typing import Dict, List
@@ -36,7 +37,7 @@ def create_excel_report(applications: List[Dict]) -> str:
     """Создает Excel-файл с отчетом по заявкам"""
     try:
         # Создаем папку для отчетов, если ее нет
-        os.makedirs("reports", exist_ok=True)
+        os.makedirs("/app/reports", exist_ok=True)
 
         # Подготавливаем данные для Excel
         data = []
@@ -45,19 +46,33 @@ def create_excel_report(applications: List[Dict]) -> str:
             app_text = app["application_text"]
 
             # Извлекаем данные из текста заявки
-            contacts = extract_field(app_text, "Контакты:")
+            date = extract_field(app_text, "Дата:")
             name = extract_field(app_text, "Имя:")
             department = extract_field(app_text, "Отдел:")
-            date = extract_field(app_text, "Дата:")
-            
+            contacts = extract_field(app_text, "Контакты:")
+            comment = app.get("comment", "")
+            status = app.get("status", "")
+
             # Получаем новые поля из базы данных
             db_contacts = app.get("contacts", "")
             db_name = app.get("name", "")
             db_purchaser_comment = app.get("purchaser_comment", "")
-            
+
+            # Извлекаем информацию о закупщике и сотруднике
+            purchaser = extract_purchaser_info(app_text)  # Новая функция
+            employee = extract_employee_info(app_text)  # Новая функция
+
             # Используем данные из базы, если они есть, иначе из текста
             final_contacts = db_contacts if db_contacts else contacts
             final_name = db_name if db_name else name
+
+            # Если purchaser не найден в тексте, используем данные из базы
+            if purchaser == "Не указано" and "purchaser" in app:
+                purchaser = app.get("purchaser", "")
+
+            # Если employee не найден в тексте, используем данные из базы
+            if employee == "Не указано" and "employee" in app:
+                employee = app.get("employee", "")
 
             # Извлекаем артикулы и названия книг
             articles, book_names = extract_books_info(app_text)
@@ -69,20 +84,46 @@ def create_excel_report(applications: List[Dict]) -> str:
                     "Имя": final_name,
                     "Отдел": department,
                     "Контакты": final_contacts,
+                    "Закупщик": purchaser,
                     "Комментарий закупщика": db_purchaser_comment,
                     "Артикулы книг": articles,
                     "Названия книг": book_names,
-                    "Комментарий": app["comment"],
-                    "Статус": app["status"],
+                    "Сотрудник, внесший заявку": employee,
+                    "Комментарий": comment,
+                    "Статус": status,
                 }
             )
 
-        # Создаем DataFrame
+        # Создаем DataFrame с правильным порядком колонок
+        columns_order = [
+            "ID",
+            "Дата в заявке",
+            "Имя",
+            "Отдел",
+            "Контакты",
+            "Закупщик",
+            "Комментарий закупщика",
+            "Артикулы книг",
+            "Названия книг",
+            "Сотрудник, внесший заявку",
+            "Комментарий",
+            "Статус"
+        ]
+
         df = pd.DataFrame(data)
+
+        # Убедимся, что все колонки существуют (если каких-то нет, создадим пустые)
+        for col in columns_order:
+            if col not in df.columns:
+                df[col] = ""
+
+        # Переупорядочиваем колонки
+        df = df[columns_order]
 
         # Генерируем имя файла с текущей датой
         current_date = datetime.now().strftime("%Y-%m-%d")
-        filename = f"reports/Stol_zakazov{current_date}.xlsx"
+        temp_dir = tempfile.gettempdir()
+        filename = os.path.join(temp_dir, f"Stol_zakazov_{current_date}.xlsx")
 
         # Создаем Excel файл с форматированием
         create_formatted_excel(df, filename)
@@ -93,6 +134,34 @@ def create_excel_report(applications: List[Dict]) -> str:
     except Exception as e:
         logger.error(f"❌ Ошибка создания Excel-отчета: {e}")
         return None
+
+
+def extract_purchaser_info(text: str) -> str:
+    """Извлекает информацию о закупщике из текста заявки"""
+    try:
+        lines = text.split("\n")
+        for line in lines:
+            line_lower = line.lower()
+            if "закупщик" in line_lower and ":" in line:
+                return line.split(":", 1)[1].strip()
+        return "Не указано"
+    except:
+        return "Ошибка извлечения"
+
+
+def extract_employee_info(text: str) -> str:
+    """Извлекает информацию о сотруднике, внесшем заявку"""
+    try:
+        lines = text.split("\n")
+        for line in lines:
+            line_lower = line.lower()
+            if "сотрудник" in line_lower and ":" in line:
+                return line.split(":", 1)[1].strip()
+            elif "внесший" in line_lower and ":" in line:
+                return line.split(":", 1)[1].strip()
+        return "Не указано"
+    except:
+        return "Ошибка извлечения"
 
 
 def create_formatted_excel(df: pd.DataFrame, filename: str):
@@ -588,3 +657,4 @@ async def send_weekly_report():
     except Exception as e:
         logger.error(f"Ошибка отправки еженедельного отчета: {e}")
         return False, f"Ошибка: {e}"
+

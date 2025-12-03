@@ -4,15 +4,12 @@ import pymssql
 from aiogram import BaseMiddleware
 from aiogram.types import Message
 
-
 from config import Config
-
 
 SERVER_IP = Config.SERVER_IP
 DB_NAME = Config.DB_NAME
 SQL_LOGIN = Config.SQL_LOGIN
 SQL_PASSWORD = Config.SQL_PASSWORD
-
 
 class DatabaseMiddleware(BaseMiddleware):
     def __init__(self):
@@ -38,12 +35,12 @@ class DatabaseMiddleware(BaseMiddleware):
     def connect_to_1c_77_sql(self):
         """Установка соединения с SQL Server"""
         try:
+            # ПРАВИЛЬНОЕ использование pymssql
             conn = pymssql.connect(
-                f"DRIVER={{SQL Server}};"
-                f"SERVER={SERVER_IP};"
-                f"DATABASE={DB_NAME};"
-                f"UID={SQL_LOGIN};"
-                f"PWD={SQL_PASSWORD}"
+                server=SERVER_IP,
+                database=DB_NAME,
+                user=SQL_LOGIN,
+                password=SQL_PASSWORD
             )
             print("Успешное подключение к SQL-серверу 1С 7.7!")
             return conn

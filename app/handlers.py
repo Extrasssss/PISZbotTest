@@ -13,7 +13,7 @@ import Levenshtein
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import pymssql
-from aiogram import Dispatcher, F, Router
+from aiogram import Dispatcher, F, Router, types
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -80,6 +80,15 @@ async def cmd_start(message: Message):
     )
 
 
+@router.callback_query(lambda c: c.data == "main_menu")
+async def callback_main_menu(callback_query: types.CallbackQuery):
+    await callback_query.message.answer(
+        f"👾 Привет, {callback_query.from_user.first_name}! Возвращаю в главное меню.",
+        reply_markup=kb.main,
+    )
+    await callback_query.answer()
+
+
 @router.message(Command("reports"))
 async def handle_reports_command(message: Message):
     """Команда для доступа к отчетам"""
@@ -93,11 +102,6 @@ async def handle_reports_command(message: Message):
 
     mock_callback = MockCallback(message)
     await show_reports_menu(mock_callback)
-
-
-@router.message(Command("tablica"))
-async def tablica(message: Message):
-    await message.answer("Таблица", reply_markup=kb.tablica)
 
 
 @router.message(Command("quit"))
@@ -120,10 +124,10 @@ async def add(callback: CallbackQuery, state: FSMContext):
 async def first(callback: CallbackQuery, state: FSMContext):
     if callback.data == "articool":
         await state.set_state(Add.article)
-        await callback.message.edit_text("⌨️введите артикул")
+        await callback.message.edit_text("⌨️Введите артикул")
     elif callback.data == "neverbook":
         await state.set_state(Add.neverbook)
-        await callback.message.edit_text("✏️введите название")
+        await callback.message.edit_text("✏️Введите название")
 
 
 @router.message(Add.neverbook)
@@ -342,7 +346,7 @@ async def fifth(message: Message, state: FSMContext):
         await state.update_data(number=phone)
         await message.answer(f"✅ Номер сохранен: {phone}")
         await state.set_state(Add.name)
-        await message.answer("🙋введите Имя заказчика🙋‍♂️")
+        await message.answer("🙋Введите Имя заказчика🙋‍♂️")
         return True
     elif re.match(pattern2, phone):
         # Номер в формате 89990008899 - конвертируем в +79990008899
@@ -350,7 +354,7 @@ async def fifth(message: Message, state: FSMContext):
         await state.update_data(number=formatted_phone)
         await message.answer(f"✅ Номер сохранен: {formatted_phone}")
         await state.set_state(Add.name)
-        await message.answer("🙋введите Имя заказчика🙋‍♂️")
+        await message.answer("🙋Введите Имя заказчика🙋‍♂️")
         return True
     else:
         # Анализируем ошибку
@@ -400,7 +404,7 @@ async def n2(message: Message, state: FSMContext):
         await state.update_data(number=phone)
         await message.answer(f"✅ Номер сохранен: {phone}")
         await state.set_state(Add.neverbook_name)
-        await message.answer("🙋введите Имя заказчика🙋‍♂️")
+        await message.answer("🙋Введите Имя заказчика🙋‍♂️")
         return True
     elif re.match(pattern2, phone):
         # Номер в формате 89990008899 - конвертируем в +79990008899
@@ -408,7 +412,7 @@ async def n2(message: Message, state: FSMContext):
         await state.update_data(number=formatted_phone)
         await message.answer(f"✅ Номер сохранен: {formatted_phone}")
         await state.set_state(Add.neverbook_name)
-        await message.answer("🙋введите Имя заказчика🙋‍♂️")
+        await message.answer("🙋Введите Имя заказчика🙋‍♂️")
         return True
     else:
         # Анализируем ошибку
@@ -531,6 +535,10 @@ async def complete_application(message: Message, state: FSMContext, bot: Bot, co
                     InlineKeyboardButton(
                         text="📋 Показать историю заявок",
                         callback_data="history:0"
+                    ),
+                    InlineKeyboardButton(
+                        text="🏠 В главное меню",
+                        callback_data="main_menu"
                     )
                 ]
             ]
@@ -579,6 +587,10 @@ async def n5(message: Message, state: FSMContext, bot: Bot, comment: str = ""):
                     InlineKeyboardButton(
                         text="📋 Показать историю заявок",
                         callback_data="history:0"
+                    ),
+                    InlineKeyboardButton(
+                        text="🏠 В главное меню",
+                        callback_data="main_menu"
                     )
                 ]
             ]
@@ -605,29 +617,29 @@ async def delete_bot_conversation(bot: Bot, chat_id: int, hours: int = 2):
     try:
         time_threshold = datetime.datetime.now() - timedelta(hours=hours)
         messages_to_delete = []
-        
+
         async for message in bot.get_chat_history(chat_id):
             message_time = message.date.replace(tzinfo=None)
-            
+
             # Если сообщение старше порога - прерываем
             if message_time < time_threshold:
                 break
-                
+
             # Добавляем все сообщения (или можно фильтровать только от бота/пользователя)
             messages_to_delete.append(message.message_id)
-        
+
         if messages_to_delete:
             print(f"Найдено {len(messages_to_delete)} сообщений для удаления")
-            
+
             # Удаляем в обратном порядке (от старых к новым)
             for i in range(0, len(messages_to_delete), 100):
                 chunk = messages_to_delete[i:i + 100]
                 await bot.delete_messages(chat_id=chat_id, message_ids=chunk)
                 await asyncio.sleep(0.1)
-                
+
         else:
             print("Нет сообщений для удаления")
-            
+
     except Exception as e:
         print(f"Ошибка при очистке диалога: {e}")
 
@@ -1018,7 +1030,10 @@ async def show_reports_menu(callback_query: CallbackQuery):
                     )
                 ],
                 [InlineKeyboardButton(
-                    text="⬅️ Назад", callback_data="history:0")],
+                    text="⬅️ История заявок", callback_data="history:0")],
+                [InlineKeyboardButton(
+                        text="  В главное меню",
+                        callback_data="main_menu")]
             ]
         )
 
@@ -1480,6 +1495,8 @@ async def send_text_search_results(
         response += f"📄 Страница {page} из {total_pages}\n"
         response += f"🎯 (отсортировано по релевантности)\n\n"
 
+        search_buttons = []
+
         for i, (code, product_rows) in enumerate(products.items(), 1):
             first_row = product_rows[0]
 
@@ -1509,18 +1526,50 @@ async def send_text_search_results(
             response += f"   • Год издания: {first_row['YearPublishing'] or 'Не указан'}\n"
             response += f"   • Цена: {first_row['price'] or 'Не указана'} руб.\n"
 
-            # Показываем склады для этого товара
-            for j, row in enumerate(product_rows, 1):
-                response += f"   📦 Склад{j}: {row['sklad_name'] or 'Не указан'}\n"
-                response += f"   • Количество: **{row['remain'] or 0}** шт.\n"
-                if j < len(product_rows):
+            search_buttons.append([
+                InlineKeyboardButton(
+                    text=f"🔍 Поиск по коду {code}",
+                    callback_data=f"search_by_code:{code}:{session_id}:{page}"
+                )
+            ])
+
+            for i, row in enumerate(product_rows, 1):
+                # Форматируем количество - убираем .000 и оставляем только целую часть
+                remain = row['remain']
+                if remain is not None:
+                    # Преобразуем в целое число, если это float с .000
+                    if isinstance(remain, (int, float)):
+                        # Проверяем, заканчивается ли на .000
+                        if isinstance(remain, float) and remain.is_integer():
+                            remain_formatted = str(int(remain))
+                        else:
+                            remain_formatted = str(remain)
+                    else:
+                        # Если это строка, пытаемся преобразовать
+                        try:
+                            remain_float = float(remain)
+                            if remain_float.is_integer():
+                                remain_formatted = str(int(remain_float))
+                            else:
+                                remain_formatted = str(remain_float)
+                        except:
+                            remain_formatted = str(remain)
+                else:
+                    remain_formatted = "0"
+
+                response += f"     Склад: {row['sklad_name'] or 'Не указан'}\n"
+                response += f"   • Количество: **{remain_formatted}** шт.\n"
+                if i < len(product_rows):
                     response += "   ─────────────────\n"
 
-            if i < len(products):
-                response += "\n" + "=" * 50 + "\n\n"
+            response += "\n" + "=" * 50 + "\n\n"
 
         # Создаем клавиатуру пагинации
         keyboard = create_pagination_keyboard(session_id, page, total_pages)
+
+        inline_keyboard = search_buttons + keyboard.inline_keyboard
+
+        final_keyboard = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
         if loading_msg:
             await edit_loading_message(loading_msg,
@@ -1540,6 +1589,39 @@ async def send_text_search_results(
         import traceback
 
         print(f"Full traceback: {traceback.format_exc()}")
+
+
+@router.callback_query(F.data.startswith("search_by_code:"))
+async def handle_search_by_code(callback: CallbackQuery, state: FSMContext):
+    """Обработчик поиска по конкретному коду книги"""
+    try:
+        # Разбираем callback data
+        # Формат: search_by_code:CODE:session_id:page
+        parts = callback.data.split(":")
+        if len(parts) >= 2:
+            code = parts[1]
+
+            # Отвечаем на callback чтобы убрать "часики"
+            await callback.answer(f"🔍 Ищу товар с кодом {code}...")
+
+            # Получаем данные из состояния
+            data = await state.get_data()
+            session_id = data.get("search_session_id", "default")
+
+            # Сохраняем код для поиска в состояние
+            await state.update_data(
+                search_code=code,
+                search_session_id=session_id,
+                search_page=1,
+                search_type="code"
+            )
+
+            # Вызываем функцию поиска по коду
+            await search_by_code(callback.message, state, code)
+
+    except Exception as e:
+        await callback.answer("❌ Ошибка при поиске")
+        print(f"Search by code error: {e}")
 
 
 def create_pagination_keyboard(
@@ -1581,6 +1663,11 @@ def create_pagination_keyboard(
                               callback_data="new_search")]
     )
 
+    keyboard.inline_keyboard.append(
+        [InlineKeyboardButton(text="🏠 В главное меню",
+                              callback_data="main_menu")]
+    )
+
     return keyboard
 
 
@@ -1619,8 +1706,31 @@ async def send_search_results(
             response += f"   • Цена: {first_row['price'] or 'Не указана'}\n\n"
 
             for i, row in enumerate(product_rows, 1):
-                response += f"   📦 Склад{i}: {row['sklad_name'] or 'Не указан'}\n"
-                response += f"   • Количество{i}: **{row['remain'] or 0}** шт.\n"
+                # Форматируем количество - убираем .000 и оставляем только целую часть
+                remain = row['remain']
+                if remain is not None:
+                    # Преобразуем в целое число, если это float с .000
+                    if isinstance(remain, (int, float)):
+                        # Проверяем, заканчивается ли на .000
+                        if isinstance(remain, float) and remain.is_integer():
+                            remain_formatted = str(int(remain))
+                        else:
+                            remain_formatted = str(remain)
+                    else:
+                        # Если это строка, пытаемся преобразовать
+                        try:
+                            remain_float = float(remain)
+                            if remain_float.is_integer():
+                                remain_formatted = str(int(remain_float))
+                            else:
+                                remain_formatted = str(remain_float)
+                        except:
+                            remain_formatted = str(remain)
+                else:
+                    remain_formatted = "0"
+
+                response += f"   📦 Склад: {row['sklad_name'] or 'Не указан'}\n"
+                response += f"   • Количество: **{remain_formatted}** шт.\n"
                 if i < len(product_rows):
                     response += "   ─────────────────\n"
 
@@ -1692,13 +1802,11 @@ async def send_search_results(
                     await loading_msg.delete()
                     await message.answer_media_group(media=media_group)
                     if keyboard:
-                        await message.answer("Навигация:",
-                                             reply_markup=keyboard)
+                        await message.answer(reply_markup=keyboard)
                 else:
                     await message.answer_media_group(media=media_group)
                     if keyboard:
-                        await message.answer("Навигация:",
-                                             reply_markup=keyboard)
+                        await message.answer(reply_markup=keyboard)
         else:
             # Если нет изображений, отправляем только текст
             if loading_msg:
@@ -1707,13 +1815,17 @@ async def send_search_results(
                                            reply_markup=keyboard)
             else:
                 await message.answer(response, reply_markup=keyboard)
-        
+
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
                         text="📋 Показать историю заявок",
                         callback_data="history:0"
+                    ),
+                    InlineKeyboardButton(
+                        text="🏠 В главное меню",
+                        callback_data="main_menu"
                     )
                 ]
             ]
@@ -1735,7 +1847,7 @@ async def send_search_results(
 # Обработчик для кнопок пагинации
 # Обработчик для кнопок пагинации - ИСПРАВЛЕННАЯ БЫСТРАЯ ВЕРСИЯ
 async def handle_pagination_callback(
-    callback_query: CallbackQuery, db_connection: pyodbc.Connection
+    callback_query: CallbackQuery, db_connection: pymssql.Connection
 ):
     """ИСПРАВЛЕННАЯ быстрая версия обработки пагинации"""
     # 🚀 Мгновенный ответ
@@ -1748,7 +1860,7 @@ async def handle_pagination_callback(
     try:
         if not callback_query.data.startswith("page_"):
             return
-            
+
         _, session_id, page_str = callback_query.data.split("_", 2)
         new_page = int(page_str)
     except:
@@ -1758,10 +1870,10 @@ async def handle_pagination_callback(
     try:
         # 🚀 Отправляем загрузку
         loading_msg = await send_loading_message(callback_query.message)
-        
+
         # 🚀 Получаем сессию
         session = get_search_session(session_id)
-        
+
         # 🚀 Fallback на последнюю сессию
         if not session:
             user_sessions = get_user_sessions(callback_query.from_user.id)
@@ -2358,3 +2470,4 @@ async def get_search_results_page(
         sorted_products[offset: offset + items_per_page],
         loading_msg,
     )
+

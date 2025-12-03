@@ -44,7 +44,7 @@ def send_email_with_attachment(
 
         # 🛠️ ИСПРАВЛЕНИЕ: Используем EMAIL_CONFIG для SMTP настроек
         server = smtplib.SMTP(
-            Config.EMAIL_CONFIG["smtp_server"], 
+            Config.EMAIL_CONFIG["smtp_server"],
             Config.EMAIL_CONFIG["smtp_port"]
         )
         server.starttls()

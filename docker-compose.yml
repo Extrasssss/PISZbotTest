@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   piszbot:
     build: .
@@ -8,12 +6,12 @@ services:
     env_file:
       - .env
     network_mode: "host"
+    user: "1000:1000"  # 🆕 ДОБАВЬТЕ ЭТУ СТРОКУ
+    environment:
+      - DB_PATH=/app/data/applications.db
     volumes:
-      - piszbot_data:/app/data
+      - ./data:/app/data
       - ./logs:/app/logs
       - ./reports:/app/reports
-      # ✅ ДОБАВЬТЕ МОНТИРОВАНИЕ ДИРЕКТОРИИ С ИЗОБРАЖЕНИЯМИ
       - /mnt/md3/servers/imagessmb/images:/mnt/images:ro
-
-volumes:
-  piszbot_data:
+      - ./cache:/app/cache

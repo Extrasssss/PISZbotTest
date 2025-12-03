@@ -25,7 +25,7 @@ check_python() {
         error "Python is not installed or not in PATH"
         exit 1
     fi
-    
+
     PYTHON_VERSION=$(python -c "import sys; print('.'.join(map(str, sys.version_info[:2])))")
     log "Python version: $PYTHON_VERSION"
 }
@@ -68,13 +68,13 @@ setup_environment() {
 validate_config() {
     local required_vars=("BOT_TOKEN" "SERVER_IP" "DB_NAME" "SQL_LOGIN" "SQL_PASSWORD")
     local missing_vars=()
-    
+
     for var in "${required_vars[@]}"; do
         if [ -z "${!var}" ]; then
             missing_vars+=("$var")
         fi
     done
-    
+
     if [ ${#missing_vars[@]} -ne 0 ]; then
         error "Missing required environment variables: ${missing_vars[*]}"
         exit 1
@@ -93,16 +93,16 @@ create_directories() {
 
 main() {
     log "🚀 Starting PISZBOT..."
-    
+
     check_python
     check_dependencies
     setup_environment
     validate_config
     create_directories
-    
+
     log "✅ All checks passed"
     log "🐍 Starting application..."
-    
+
     # Запускаем приложение
     exec python run.py
 }

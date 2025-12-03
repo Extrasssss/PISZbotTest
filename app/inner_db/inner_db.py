@@ -12,6 +12,8 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 
+from config import Config
+
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,8 +38,8 @@ class DeleteStates(StatesGroup):
 class SQLiteHistoryManager:
     """Класс для управления историей заявок в локальной SQLite базе"""
 
-    def __init__(self, db_path: str = "applications.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or Config.DB_PATH
         self.connection = None
 
     def connect(self) -> bool:
@@ -106,7 +108,7 @@ class SQLiteHistoryManager:
                     pass
 
         except sqlite3.Error as e:
-            logger.error(f"❌ Ошибка добавления колонок: {e}")        
+            logger.error(f"❌ Ошибка добавления колонок: {e}")
 
     def save_application(
         self,
@@ -125,7 +127,7 @@ class SQLiteHistoryManager:
         try:
             insert_query = """
             INSERT INTO applications (
-                application_text, comment, status, created_date, 
+                application_text, comment, status, created_date,
                 contacts, name, purchaser_comment
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -539,7 +541,7 @@ class SQLiteHistoryManager:
                     comment_updated = True
                 else:
                     new_lines.append(line)
-        
+
             # Если строка с комментарием закупщика не найдена, добавляем её в конец
             if not comment_updated:
                 new_lines.append(f"  • Комментарий от закупщика: {new_purchaser_comment}")
@@ -598,7 +600,7 @@ class SQLiteHistoryManager:
 
 
 # Создаем менеджер истории заявок
-applications_manager = SQLiteHistoryManager("applications.db")
+applications_manager = SQLiteHistoryManager(Config.DB_PATH)
 
 
 # Ваша функция format_final_result (заглушка)
@@ -649,6 +651,14 @@ async def show_applications_history(callback_query: CallbackQuery,
                 InlineKeyboardButton(
                     text="🗑️ Удалить заявки",
                     callback_data=f"delete_page:{page}"
+                )
+            ]
+        )
+        keyboard_buttons.append(
+            [
+                InlineKeyboardButton(
+                    text="  В главное меню",
+                    callback_data="main_menu"
                 )
             ]
         )

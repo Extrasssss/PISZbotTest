@@ -19,22 +19,22 @@ async def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[logging.StreamHandler(sys.stdout)]  # ✅ Важно для Docker
     )
-    
+
     # Инициализация бота
     bot = Bot(token=Config.TOKEN)  # ✅ Используем Config.TOKEN
     dp = Dispatcher()
-    
+
     # Middleware
     dp.update.middleware(DatabaseMiddleware())
-    
+
     try:
         dp.include_router(router)
         setup_weekly_report_scheduler()
         asyncio.create_task(start_periodic_cleanup())
-        
+
         logging.info("🚀 Bot starting...")
         await dp.start_polling(bot, skip_updates=True)
-        
+
     except Exception as e:
         logging.error(f"❌ Bot crashed: {e}")
         raise

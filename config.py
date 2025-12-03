@@ -7,7 +7,7 @@ from pathlib import Path
 load_dotenv()
 
 # Правильный путь к базе
-DB_PATH = "/app/applications.db"
+DB_PATH = "/app/data/applications.db"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 print(f"📁 Используется база: {DB_PATH}")
@@ -28,24 +28,26 @@ EMAIL_CONFIG = {
 
 class Config:
     """Безопасная конфигурация для Docker"""
-    
+
     # Bot Configuration
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
         raise ValueError("BOT_TOKEN environment variable is required")
-    
+
     # Database Configuration
     SERVER_IP = os.getenv('SERVER_IP')
-    DB_NAME = os.getenv('DB_NAME') 
+    DB_NAME = os.getenv('DB_NAME')
     SQL_LOGIN = os.getenv('SQL_LOGIN')
     SQL_PASSWORD = os.getenv('SQL_PASSWORD')
-    
+
+    DB_PATH = DB_PATH
+
     # Email Configuration (дублируем для удобства)
     EMAIL_CONFIG = EMAIL_CONFIG
-    
+
     # Admin Configuration
     ADMIN_CHAT_ID = int(os.getenv('ADMIN_CHAT_ID', 1125363386))
-    
+
     # Current time
     r_time = datetime.now().strftime("%d.%m.%Y %H:%M")
 
